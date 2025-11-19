@@ -1,6 +1,7 @@
 import sys
 from abc import ABC, abstractmethod
 from utils import extract_all_blocks
+import tiktoken
 
 class BaseChat(ABC):
     def __init__(self, model: str, temperature: float = 1.0):
@@ -12,7 +13,18 @@ class BaseChat(ABC):
     def get_response(self, prompt) -> str:
         pass
 
-    def get_model_response(self, prompt, code_format=None) -> list:
+    def truncate_prompt_from_front(prompt: str, model: str, max_tokens: int) -> str:
+        enc = tiktoken.encoding_for_model(model)
+        tokens = enc.encode(prompt)
+
+        if len(tokens) <= max_tokens:
+            return prompt
+
+        truncated = tokens[-max_tokens:]
+        return enc.decode(truncated)
+
+
+    def get_model_response(self, prompt, code_format=None, model="o3", max_context_tokens=180000) -> list:
         code_blocks = []
         max_try = 3
         while code_blocks == [] and max_try > 0:
@@ -20,9 +32,15 @@ class BaseChat(ABC):
             try:
                 response = self.get_response(prompt)
             except Exception as e:
+                msg = str(e)
+                if "maximum context length" in msg or "context_length_exceeded" in msg:
+                    prompt = truncate_prompt_from_front(prompt, model, max_context_tokens + max_try * 10000)
+                    continue
                 print(f"max_try: {max_try}, exception: {e}")
                 continue
+
             code_blocks = extract_all_blocks(response, code_format)
+
         if max_try == 0 or code_blocks == []:
             print(f"get_model_response() exit, max_try: {max_try}, code_blocks: {code_blocks}")
             sys.exit(0)
