@@ -14,19 +14,19 @@ class BaseChat(ABC):
     def get_response(self, prompt) -> str:
         pass
 
-    def truncate_prompt_from_front(self, prompt: str, model: str, max_tokens: int) -> str:
-        enc = tiktoken.encoding_for_model(model)
-        tokens = enc.encode(prompt)
-
-        if len(tokens) <= max_tokens:
-            return prompt
-
-        truncated = tokens[-max_tokens:]
-        return enc.decode(truncated)
-
-    def truncate(self, prompt: str, max_ctx, used_ctx) -> str:
-        buffer = 5000
-        return prompt[-int(len(prompt) * (max_ctx - buffer) / used_ctx):]
+    def truncate_history(self, max_context_tokens=200000):
+        print(f"Messages before truncation: {len(self.messages)}")
+        encoding = tiktoken.encoding_for_model(self.model)
+        total_tokens = 0
+        new_messages = []
+        for message in reversed(self.messages):
+            message_tokens = len(encoding.encode(message["content"]))
+            if total_tokens + message_tokens > max_context_tokens:
+                break
+            new_messages.insert(0, message)
+            total_tokens += message_tokens + 10
+        self.messages = new_messages
+        print(f"Messages after truncation: {len(self.messages)}")
 
     def get_model_response(self, prompt, code_format=None, model="o3", max_context_tokens=280000) -> list:
         code_blocks = []
@@ -45,12 +45,7 @@ class BaseChat(ABC):
                     t = int(time.time())
                     with open(f"prompt_{t}.txt", "w") as f:
                         f.write(prompt)
-                    prompt = self.truncate_prompt_from_front(prompt, model, max_context_tokens + max_try * 10000)
-                #     max_ctx, used_ctx = re.findall(r'\d+', msg)[1:3]
-                #     max_ctx = int(max_ctx)
-                #     used_ctx = int(used_ctx)
-                #     prompt = self.truncate(prompt, max_ctx, used_ctx)
-                    
+                    self.truncate_history()
                 print(f"max_try: {max_try}, exception: {e}")
                 continue
             code_blocks = extract_all_blocks(response, code_format)
