@@ -13,7 +13,7 @@ class BaseChat(ABC):
     def get_response(self, prompt) -> str:
         pass
 
-    def truncate_prompt_from_front(prompt: str, model: str, max_tokens: int) -> str:
+    def truncate_prompt_from_front(self, prompt: str, model: str, max_tokens: int) -> str:
         enc = tiktoken.encoding_for_model(model)
         tokens = enc.encode(prompt)
 
@@ -34,14 +34,18 @@ class BaseChat(ABC):
             except Exception as e:
                 msg = str(e)
                 print(f"Exception message: {msg}")
+                # Save the prompt to a file for debugging
+                # name with timestamp
+                import time
+                t = int(time.time())
+                with open(f"prompt_{t}.txt", "w") as f:
+                    f.write(prompt)
                 if "maximum context length" in msg or "context_length_exceeded" in msg:
                     prompt = self.truncate_prompt_from_front(prompt, model, max_context_tokens + max_try * 10000)
-                    continue
                 print(f"max_try: {max_try}, exception: {e}")
                 continue
-
             code_blocks = extract_all_blocks(response, code_format)
-
+            print(f"Success, remaining tries: {max_try}")
         if max_try == 0 or code_blocks == []:
             print(f"get_model_response() exit, max_try: {max_try}, code_blocks: {code_blocks}")
             sys.exit(0)
