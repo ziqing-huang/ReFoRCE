@@ -36,7 +36,7 @@ class BaseChat(ABC):
             try:
                 response = self.get_response(prompt)
             except Exception as e:
-                self.messages.pop()  # remove the last user message
+                 # remove the last user message
                 msg = str(e)
                 print(f"Exception message: {msg}")
 
@@ -46,6 +46,7 @@ class BaseChat(ABC):
                     with open(f"prompt_{t}.txt", "w") as f:
                         f.write(prompt)
                     self.truncate_history()
+                self.messages.pop() 
                 print(f"max_try: {max_try}, exception: {e}")
                 continue
             code_blocks = extract_all_blocks(response, code_format)
