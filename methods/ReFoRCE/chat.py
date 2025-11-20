@@ -14,6 +14,15 @@ class BaseChat(ABC):
     def get_response(self, prompt) -> str:
         pass
 
+        
+    def truncate_by_tokens(self, text, max_tokens):
+        encoding = tiktoken.encoding_for_model(self.model)
+        tokens = encoding.encode(text)
+        if len(tokens) <= max_tokens:
+            return text
+        truncated_tokens = tokens[-max_tokens:]
+        return encoding.decode(truncated_tokens)
+    
     def truncate_history(self, max_context_tokens=200000):
         print(f"Messages before truncation: {len(self.messages)}")
         encoding = tiktoken.encoding_for_model(self.model)
@@ -25,7 +34,12 @@ class BaseChat(ABC):
                 break
             new_messages.insert(0, message)
             total_tokens += message_tokens + 10
-        self.messages = new_messages
+        if len(new_messages) == 0:
+            message = self.messages[-1]
+            self.messages = [{"role": message["role"], "content": self.truncate_by_tokens(message["content"], max_context_tokens - 100)}]
+        else:
+            self.messages = new_messages
+
         print(f"Messages after truncation: {len(self.messages)}")
 
     def get_model_response(self, prompt, code_format=None, model="o3", max_context_tokens=280000) -> list:
@@ -36,17 +50,6 @@ class BaseChat(ABC):
             try:
                 response = self.get_response(prompt)
             except Exception as e:
-                 # remove the last user message
-                msg = str(e)
-                print(f"Exception message: {msg}")
-
-                if "maximum context length" in msg or "context_length_exceeded" in msg:
-                    import time
-                    t = int(time.time())
-                    with open(f"prompt_{t}.txt", "w") as f:
-                        f.write(prompt)
-                    self.truncate_history()
-                self.messages.pop() 
                 print(f"max_try: {max_try}, exception: {e}")
                 continue
             code_blocks = extract_all_blocks(response, code_format)
@@ -117,6 +120,7 @@ class GPTChat(BaseChat):
 
     def get_response(self, prompt) -> str:
         self.messages.append({"role": "user", "content": prompt})
+        self.truncate_history()
         if self.model == "o3-pro":
             response = self.client.responses.create(
                 model=self.model,
