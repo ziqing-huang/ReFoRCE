@@ -28,7 +28,7 @@ class BaseChat(ABC):
         buffer = 5000
         return prompt[-int(len(prompt) * (max_ctx - buffer) / used_ctx):]
 
-    def get_model_response(self, prompt, code_format=None, model="o3", max_context_tokens=180000) -> list:
+    def get_model_response(self, prompt, code_format=None, model="o3", max_context_tokens=280000) -> list:
         code_blocks = []
         max_try = 3
         while code_blocks == [] and max_try > 0:
@@ -36,18 +36,20 @@ class BaseChat(ABC):
             try:
                 response = self.get_response(prompt)
             except Exception as e:
+                self.messages.pop()  # remove the last user message
                 msg = str(e)
                 print(f"Exception message: {msg}")
 
                 if "maximum context length" in msg or "context_length_exceeded" in msg:
                     import time
                     t = int(time.time())
-                    with open(f"prompt_char_{t}.txt", "w") as f:
+                    with open(f"prompt_{t}.txt", "w") as f:
                         f.write(prompt)
-                    max_ctx, used_ctx = re.findall(r'\d+', msg)[1:3]
-                    max_ctx = int(max_ctx)
-                    used_ctx = int(used_ctx)
-                    prompt = self.truncate(prompt, max_ctx, used_ctx)
+                    prompt = self.truncate_prompt_from_front(prompt, model, max_context_tokens + max_try * 10000)
+                #     max_ctx, used_ctx = re.findall(r'\d+', msg)[1:3]
+                #     max_ctx = int(max_ctx)
+                #     used_ctx = int(used_ctx)
+                #     prompt = self.truncate(prompt, max_ctx, used_ctx)
                     
                 print(f"max_try: {max_try}, exception: {e}")
                 continue
