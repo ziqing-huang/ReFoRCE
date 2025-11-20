@@ -2,6 +2,7 @@ import sys
 from abc import ABC, abstractmethod
 from utils import extract_all_blocks
 import tiktoken
+import re
 
 class BaseChat(ABC):
     def __init__(self, model: str, temperature: float = 1.0):
@@ -23,6 +24,9 @@ class BaseChat(ABC):
         truncated = tokens[-max_tokens:]
         return enc.decode(truncated)
 
+    def truncate(self, prompt: str, max_ctx, used_ctx) -> str:
+        buffer = 5000
+        return prompt[-int(len(prompt) * (max_ctx - buffer) / used_ctx):]
 
     def get_model_response(self, prompt, code_format=None, model="o3", max_context_tokens=180000) -> list:
         code_blocks = []
@@ -34,18 +38,22 @@ class BaseChat(ABC):
             except Exception as e:
                 msg = str(e)
                 print(f"Exception message: {msg}")
-                # Save the prompt to a file for debugging
-                # name with timestamp
-                import time
-                t = int(time.time())
-                with open(f"prompt_{t}.txt", "w") as f:
-                    f.write(prompt)
+
                 if "maximum context length" in msg or "context_length_exceeded" in msg:
-                    prompt = self.truncate_prompt_from_front(prompt, model, max_context_tokens + max_try * 10000)
+                    import time
+                    t = int(time.time())
+                    with open(f"prompt_char_{t}.txt", "w") as f:
+                        f.write(prompt)
+                    max_ctx, used_ctx = re.findall(r'\d+', msg)[1:3]
+                    max_ctx = int(max_ctx)
+                    used_ctx = int(used_ctx)
+                    prompt = self.truncate(prompt, max_ctx, used_ctx)
+                    
                 print(f"max_try: {max_try}, exception: {e}")
                 continue
             code_blocks = extract_all_blocks(response, code_format)
-            print(f"Success, remaining tries: {max_try}")
+            if max_try < 2:
+                print(f"Success, remaining tries: {max_try}")
         if max_try == 0 or code_blocks == []:
             print(f"get_model_response() exit, max_try: {max_try}, code_blocks: {code_blocks}")
             sys.exit(0)
