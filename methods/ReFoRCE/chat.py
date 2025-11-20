@@ -33,8 +33,9 @@ class BaseChat(ABC):
                 response = self.get_response(prompt)
             except Exception as e:
                 msg = str(e)
+                print(f"Exception message: {msg}")
                 if "maximum context length" in msg or "context_length_exceeded" in msg:
-                    prompt = truncate_prompt_from_front(prompt, model, max_context_tokens + max_try * 10000)
+                    prompt = self.truncate_prompt_from_front(prompt, model, max_context_tokens + max_try * 10000)
                     continue
                 print(f"max_try: {max_try}, exception: {e}")
                 continue
