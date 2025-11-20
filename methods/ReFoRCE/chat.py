@@ -24,7 +24,7 @@ class BaseChat(ABC):
         return encoding.decode(truncated_tokens)
     
     def truncate_history(self, max_context_tokens=200000):
-        print(f"Messages before truncation: {len(self.messages)}")
+        prev_msg_len = len(self.messages)
         encoding = tiktoken.encoding_for_model(self.model)
         total_tokens = 0
         new_messages = []
@@ -39,8 +39,8 @@ class BaseChat(ABC):
             self.messages = [{"role": message["role"], "content": self.truncate_by_tokens(message["content"], max_context_tokens - 100)}]
         else:
             self.messages = new_messages
-
-        print(f"Messages after truncation: {len(self.messages)}")
+        if prev_msg_len != len(self.messages):
+            print(f"Messages truncated: {prev_msg_len} -> {len(self.messages)}")
 
     def get_model_response(self, prompt, code_format=None, model="o3", max_context_tokens=280000) -> list:
         code_blocks = []
